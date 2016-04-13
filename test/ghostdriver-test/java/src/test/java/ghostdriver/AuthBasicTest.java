@@ -27,29 +27,38 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 package ghostdriver;
 
-import org.junit.Test;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-
 import static org.junit.Assert.assertTrue;
 
-public class GoogleSearchTest extends BaseTest {
-    @Test
-    public void searchForCheese() {
-        String strToSearchFor = "Cheese!";
-        WebDriver d = getDriver();
+import org.junit.Test;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 
-        // Load Google.com
-        d.get(" http://www.google.com");
-        // Locate the Search field on the Google page
-        WebElement element = d.findElement(By.name("q"));
-        // Type Cheese
-        element.sendKeys(strToSearchFor);
-        // Submit form
-        element.submit();
+public class AuthBasicTest extends BaseTest {
 
-        // Check results contains the term we searched for
-        assertTrue(d.getTitle().toLowerCase().contains(strToSearchFor.toLowerCase()));
+    // credentials for testing, no one would ever use these
+    private final static String userName = "admin";
+    private final static String password = "admin";
+
+    @Override
+    public void prepareDriver() throws Exception {
+        sCaps.setCapability(PhantomJSDriverService.PHANTOMJS_PAGE_SETTINGS_PREFIX + "userName", userName);
+        sCaps.setCapability(PhantomJSDriverService.PHANTOMJS_PAGE_SETTINGS_PREFIX + "password", password);
+
+        super.prepareDriver();
     }
+
+    @Test
+    public void simpleBasicAuthShouldWork() {
+        // Get Driver Instance
+        WebDriver driver = getDriver();
+
+        // wrong password
+        driver.get(String.format("http://httpbin.org/basic-auth/%s/Wrong%s", userName, password));
+        assertTrue(!driver.getPageSource().contains("authenticated"));
+
+        // we should be authorized
+        driver.get(String.format("http://httpbin.org/basic-auth/%s/%s", userName, password));
+        assertTrue(driver.getPageSource().contains("authenticated"));
+    }
+
 }

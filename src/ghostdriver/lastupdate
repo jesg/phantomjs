@@ -1,7 +1,7 @@
-2014-02-12 23:42:59
+2016-04-11 20:06:38
 
-commit 2af7099a9f5cf683ff565617be38b70318c9203f (HEAD, refs/remotes/origin/master, refs/remotes/origin/HEAD, refs/heads/master)
-Author: Ivan De Marino <detronizator@gmail.com>
-Date:   Wed Feb 12 23:42:43 2014 +0000
+commit 6136c8969a89e0487259cb34e4e9cb6dc9f7a5c5 (HEAD -> refs/heads/master, refs/remotes/origin/master, refs/remotes/origin/HEAD)
+Author: Jason Gowan <jgowan@ziprecruiter.com>
+Date:   Thu Apr 7 08:51:10 2016 -0700
 
-    Removing flaky (and pointless) test
+    update to selenium 2.53.0

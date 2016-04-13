@@ -36,25 +36,30 @@ import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.phantomjs.PhantomJSDriver;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-public class FileUploadTest extends BaseTestWithServer {
+public class DirectFileUploadTest extends BaseTestWithServer {
     private static final String LOREM_IPSUM_TEXT = "lorem ipsum dolor sit amet";
     private static final String FILE_HTML = "<div>" + LOREM_IPSUM_TEXT + "</div>";
 
     @Test
     public void checkFileUploadCompletes() throws IOException {
         WebDriver d = getDriver();
+        if (!(d instanceof PhantomJSDriver)) {
+            // Skip this test if not using PhantomJS.
+            // The command under test is only available when using PhantomJS
+            return;
+        }
+        PhantomJSDriver phantom = (PhantomJSDriver)d;
+
+        String buttonId = "upload";
 
         // Create the test file for uploading
         File testFile = File.createTempFile("webdriver", "tmp");
@@ -99,73 +104,23 @@ public class FileUploadTest extends BaseTestWithServer {
         });
 
         // Upload the temp file
-        d.get(server.getBaseUrl() + "/common/upload.html");
-        d.findElement(By.id("upload")).sendKeys(testFile.getAbsolutePath());
-        d.findElement(By.id("go")).submit();
+        phantom.get(server.getBaseUrl() + "/common/upload.html");
+
+        phantom.executePhantomJS("var page = this; page.uploadFile('input#"+ buttonId +"', '"+ testFile.getAbsolutePath() +"');");
+
+        phantom.findElement(By.id("go")).submit();
 
         // Uploading files across a network may take a while, even if they're really small.
         // Wait for the loading label to disappear.
-        WebDriverWait wait = new WebDriverWait(d, 10);
+        WebDriverWait wait = new WebDriverWait(phantom, 10);
         wait.until(ExpectedConditions.invisibilityOfElementLocated(By.id("upload_label")));
 
-        d.switchTo().frame("upload_target");
+        phantom.switchTo().frame("upload_target");
 
-        wait = new WebDriverWait(d, 5);
+        wait = new WebDriverWait(phantom, 5);
         wait.until(ExpectedConditions.textToBePresentInElementLocated(By.xpath("//body"), LOREM_IPSUM_TEXT));
 
         // Navigate after file upload to verify callbacks are properly released.
-        d.get("http://www.google.com/");
+        phantom.get("http://www.google.com/");
     }
-
-    @Test
-    public void checkFileUploadFailsIfFileDoesNotExist() throws InterruptedException {
-        WebDriver d = getDriver();
-
-        // Trying to upload a file that doesn't exist
-        d.get(server.getBaseUrl() + "/common/upload.html");
-        d.findElement(By.id("upload")).sendKeys("file_that_does_not_exist.fake");
-        d.findElement(By.id("go")).submit();
-
-        // Uploading files across a network may take a while, even if they're really small.
-        // Wait for a while and make sure the "upload_label" is still there: means that the file was not uploaded
-        Thread.sleep(1000);
-        assertTrue(d.findElement(By.id("upload_label")).isDisplayed());
-    }
-
-    @Test
-    public void checkUploadingTheSameFileMultipleTimes() throws IOException {
-        WebDriver d = getDriver();
-
-        File file = File.createTempFile("test", "txt");
-        file.deleteOnExit();
-
-        d.get(server.getBaseUrl() + "/common/formPage.html");
-        WebElement uploadElement = d.findElement(By.id("upload"));
-        uploadElement.sendKeys(file.getAbsolutePath());
-        uploadElement.submit();
-
-        d.get(server.getBaseUrl() + "/common/formPage.html");
-        uploadElement = d.findElement(By.id("upload"));
-        uploadElement.sendKeys(file.getAbsolutePath());
-        uploadElement.submit();
-     }
-
-    @Test
-    public void checkOnChangeEventIsFiredOnFileUpload() throws IOException {
-        WebDriver d = getDriver();
-
-        d.get(server.getBaseUrl() + "/common/formPage.html");
-        WebElement uploadElement = d.findElement(By.id("upload"));
-        WebElement result = d.findElement(By.id("fileResults"));
-        assertEquals("", result.getText());
-
-        File file = File.createTempFile("test", "txt");
-        file.deleteOnExit();
-
-        uploadElement.sendKeys(file.getAbsolutePath());
-        // Shift focus to something else because send key doesn't make the focus leave
-        d.findElement(By.id("id-name1")).click();
-
-        assertEquals("changed", result.getText());
-     }
 }
