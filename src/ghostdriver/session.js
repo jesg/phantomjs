@@ -69,6 +69,7 @@ ghostdriver.Session = function(desiredCapabilities) {
         "proxy" : {                         //< TODO Support more proxy options - PhantomJS does allow setting from command line
             "proxyType" : _const.PROXY_TYPES.DIRECT
         },
+        "webSecurityEnabled" : true
     },
     _negotiatedCapabilities = {
         "browserName"               : _defaultCapabilities.browserName,
@@ -92,7 +93,10 @@ ghostdriver.Session = function(desiredCapabilities) {
         "nativeEvents"              : _defaultCapabilities.nativeEvents,
         "proxy"                     : typeof(desiredCapabilities.proxy) === "undefined" ?
             _defaultCapabilities.proxy :
-            desiredCapabilities.proxy
+            desiredCapabilities.proxy,
+        "webSecurityEnabled"        : typeof(desiredCapabilities.webSecurityEnabled) === "undefined" ?
+            _defaultCapabilities.webSecurityEnabled :
+            desiredCapabilities.webSecurityEnabled
     },
     // NOTE: This value is needed for Timeouts Upper-bound limit.
     // "setTimeout/setInterval" accept only 32 bit integers, even though Number are all Doubles (go figure!)
@@ -110,9 +114,16 @@ ghostdriver.Session = function(desiredCapabilities) {
     _inputs = ghostdriver.Inputs(),
     _capsPageSettingsPref = "phantomjs.page.settings.",
     _capsPageCustomHeadersPref = "phantomjs.page.customHeaders.",
+    _capsPageZoomFactor = "phantomjs.page.zoomFactor",
+    _capsPageBlacklistPref = "phantomjs.page.blacklist",
+    _capsPageWaitForPref = "phantomjs.page.wait_for",
     _capsPageSettingsProxyPref = "proxy",
     _pageSettings = {},
+    _pageZoomFactor = 1,
+    _pageBlacklist = null,
+    _pageWaitFor = null,
     _additionalPageSettings = {
+        resourceTimeout: null,
         userName: null,
         password: null
     },
@@ -143,9 +154,9 @@ ghostdriver.Session = function(desiredCapabilities) {
         return proxySettings;
     };
 
-    // Searching for `phantomjs.settings.* and phantomjs.customHeaders.*` in the Desired Capabilities and merging with the Negotiated Capabilities
-    // Possible values for settings: @see https://github.com/ariya/phantomjs/wiki/API-Reference#wiki-webpage-settings.
-    // Possible values for customHeaders: @see https://github.com/ariya/phantomjs/wiki/API-Reference-WebPage#wiki-webpage-customHeaders.
+    // Searching for `phantomjs.settings.* and phantomjs.customHeaders.* phantomjs.page.zoomFactor` in the Desired Capabilities and merging with the Negotiated Capabilities
+    // Possible values for settings: @see http://phantomjs.org/api/webpage/property/settings.html.
+    // Possible values for customHeaders: @see http://phantomjs.org/api/webpage/property/custom-headers.html.
     for (k in desiredCapabilities) {
         if (k.indexOf(_capsPageSettingsPref) === 0) {
             settingKey = k.substring(_capsPageSettingsPref.length);
@@ -161,9 +172,23 @@ ghostdriver.Session = function(desiredCapabilities) {
                 _pageCustomHeaders[headerKey] = desiredCapabilities[k];
             }
         }
+        if (k.indexOf(_capsPageZoomFactor) === 0){
+            _negotiatedCapabilities[k] = desiredCapabilities[k];
+            _pageZoomFactor = desiredCapabilities[k];
+        }
         if (k.indexOf(_capsPageSettingsProxyPref) === 0) {
             proxySettings = _getProxySettingsFromCapabilities(desiredCapabilities[k]);
             phantom.setProxy(proxySettings["ip"], proxySettings["port"], proxySettings["proxyType"], proxySettings["user"], proxySettings["password"]);
+        }
+        if (k.indexOf(_capsPageBlacklistPref) === 0) {
+            _pageBlacklist = [];
+            const len = desiredCapabilities[k].length;
+            for(var i = 0; i < len; i++) {
+                _pageBlacklist.push(new RegExp(desiredCapabilities[k][i]));
+            }
+        }
+        if (k.indexOf(_capsPageWaitForPref) === 0) {
+            _pageWaitFor = desiredCapabilities[k];
         }
     }
 
@@ -219,23 +244,45 @@ ghostdriver.Session = function(desiredCapabilities) {
                 checkLoadingFinished;
 
             checkLoadingFinished = function() {
+                var wait_for_async_script = function(){
+                    var result = thisPage.evaluateJavaScript(thisPage.wait_for);
+                    _log.debug("user wait for script result: " + JSON.stringify(result));
+                    if(result){
+                        onLoadFunc.apply(thisPage, onLoadFinishedArgs);
+                    } else {
+                        // Timeout error?
+                        if (new Date().getTime() - loadingStartedTs > _getPageLoadTimeout()) {
+                            _log.debug('timeout on load');
+                            // Report the "Timeout" event
+                            onErrorFunc.call(thisPage, "timeout");
+                            return;
+                        } else {
+                            setTimeout(wait_for_async_script, 10);
+                        }
+                    }
+                };
                 if (!_isLoading()) {               //< page finished loading
                     _log.debug("_execFuncAndWaitForLoadDecorator", "Page Loading in Session: false");
 
-                    if (onLoadFinishedArgs !== null) {
+                if (onLoadFinishedArgs !== null) {
                         // Report the result of the "Load Finished" event
-                        onLoadFunc.apply(thisPage, onLoadFinishedArgs);
+                        if(!thisPage.wait_for) {
+                            onLoadFunc.apply(thisPage, onLoadFinishedArgs);
+                        } else {
+                            setTimeout(wait_for_async_script, 10);
+                        }
                     } else {
                         // No page load was caused: just report "success"
                         onLoadFunc.call(thisPage, "success");
                     }
 
                     return;
-                } // else:
+                }
                 _log.debug("_execFuncAndWaitForLoadDecorator", "Page Loading in Session: true");
 
                 // Timeout error?
                 if (new Date().getTime() - loadingStartedTs > _getPageLoadTimeout()) {
+                                    _log.debug('timeout on load');
                     // Report the "Timeout" event
                     onErrorFunc.call(thisPage, "timeout");
                     return;
@@ -298,6 +345,7 @@ ghostdriver.Session = function(desiredCapabilities) {
                     page[oneShotCallbackName] = [];
                 }
             } catch (e) {
+                            _log.debug('callback in error: ' + e);
                 // In case the "page" object has been closed,
                 // the code above will fail: that's OK.
             }
@@ -348,6 +396,8 @@ ghostdriver.Session = function(desiredCapabilities) {
 
         // 1. Random Window Handle
         page.windowHandle = require("./third_party/uuid.js").v1();
+        _log.info("window handle id " + page.windowHandle);
+        _log.info("number of open windows: " + Object.keys(_windows).length);
 
         // 2. Initialize the One-Shot Callbacks
         page["onLoadStarted"] = _oneShotCallbackFactory(page, "onLoadStarted");
@@ -377,8 +427,13 @@ ghostdriver.Session = function(desiredCapabilities) {
 
         // 7. Applying Page custom headers received via capabilities
         page.customHeaders = _pageCustomHeaders;
+        
+        // 8. Applying Page zoomFactor
+        page.zoomFactor = _pageZoomFactor;
+        page.blacklist = _pageBlacklist;
+        page.wait_for = _pageWaitFor;
 
-        // 8. Log Page internal errors
+        // 9. Log Page internal errors
         page.onError = function(errorMsg, errorStack) {
             var stack = '';
 
@@ -398,7 +453,7 @@ ghostdriver.Session = function(desiredCapabilities) {
             page.browserLog.push(_createLogEntry("WARNING", errorMsg + "\n" + stack));
         };
 
-        // 9. Log Page console messages
+        // 10. Log Page console messages
         page.browserLog = [];
         page.onConsoleMessage = function(msg, lineNum, sourceId) {
             // Log as debug
@@ -408,7 +463,7 @@ ghostdriver.Session = function(desiredCapabilities) {
             page.browserLog.push(_createLogEntry("INFO", msg + " (" + sourceId + ":" + lineNum + ")"));
         };
 
-        // 10. Log Page network activity
+        // 11. Log Page network activity
         page.resources = [];
         page.startTime = null;
         page.endTime = null;
@@ -418,7 +473,16 @@ ghostdriver.Session = function(desiredCapabilities) {
         page.setOneShotCallback("onLoadFinished", function() {
             page.endTime = new Date();
         });
-        page.onResourceRequested = function (req) {
+        page.onResourceRequested = function (req, net) {
+            if(page.blacklist) {
+                const length = page.blacklist.length;
+                for(var i = 0; i < length; i++) {
+                    if(req.url.match(page.blacklist[i])) {
+                        net.abort();
+                        _log.debug('blacklist abort ' + req.url);
+                    }
+                }
+            }
             _log.debug("page.onResourceRequested", JSON.stringify(req));
 
             // Register HTTP Request
@@ -463,6 +527,9 @@ ghostdriver.Session = function(desiredCapabilities) {
 
         _log.info("page.settings", JSON.stringify(page.settings));
         _log.info("page.customHeaders: ", JSON.stringify(page.customHeaders));
+        _log.info("page.zoomFactor: ", JSON.stringify(page.zoomFactor));
+        _log.info("page.blacklist: ", JSON.stringify(page.blacklist));
+        _log.info("page.wait_for: ", JSON.stringify(page.wait_for));
 
         return page;
     },
@@ -679,12 +746,16 @@ ghostdriver.Session = function(desiredCapabilities) {
             tmp.push(_createLogEntry(
                 "INFO",
                 JSON.stringify(har.createHar(page, page.resources))));
+            page.resources = [];
             return tmp;
         }
 
         // Return Browser Console Log
         if (type === _const.LOG_TYPES.BROWSER) {
-            return _getCurrentWindow().browserLog;
+            page = _getCurrentWindow();
+            tmp = page.browserLog;
+            page.browserLog = [];
+            return tmp;
         }
 
         // Return empty Log
