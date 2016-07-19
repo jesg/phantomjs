@@ -115,9 +115,9 @@ ghostdriver.Session = function(desiredCapabilities) {
     _capsPageSettingsPref = "phantomjs.page.settings.",
     _capsPageCustomHeadersPref = "phantomjs.page.customHeaders.",
     _capsPageZoomFactor = "phantomjs.page.zoomFactor",
-    _capsPageBlacklistPref = "phantomjs.page.blacklist",
     _capsPageWaitForPref = "phantomjs.page.wait_for",
     _capsPageSettingsProxyPref = "proxy",
+    _pageBlacklist = {},
     _pageSettings = {},
     _pageZoomFactor = 1,
     _pageBlacklist = null,
@@ -179,13 +179,6 @@ ghostdriver.Session = function(desiredCapabilities) {
         if (k.indexOf(_capsPageSettingsProxyPref) === 0) {
             proxySettings = _getProxySettingsFromCapabilities(desiredCapabilities[k]);
             phantom.setProxy(proxySettings["ip"], proxySettings["port"], proxySettings["proxyType"], proxySettings["user"], proxySettings["password"]);
-        }
-        if (k.indexOf(_capsPageBlacklistPref) === 0) {
-            _pageBlacklist = [];
-            const len = desiredCapabilities[k].length;
-            for(var i = 0; i < len; i++) {
-                _pageBlacklist.push(new RegExp(desiredCapabilities[k][i]));
-            }
         }
         if (k.indexOf(_capsPageWaitForPref) === 0) {
             _pageWaitFor = desiredCapabilities[k];
@@ -430,7 +423,6 @@ ghostdriver.Session = function(desiredCapabilities) {
         
         // 8. Applying Page zoomFactor
         page.zoomFactor = _pageZoomFactor;
-        page.blacklist = _pageBlacklist;
         page.wait_for = _pageWaitFor;
 
         // 9. Log Page internal errors
@@ -474,13 +466,11 @@ ghostdriver.Session = function(desiredCapabilities) {
             page.endTime = new Date();
         });
         page.onResourceRequested = function (req, net) {
-            if(page.blacklist) {
-                const length = page.blacklist.length;
-                for(var i = 0; i < length; i++) {
-                    if(req.url.match(page.blacklist[i])) {
-                        net.abort();
-                        _log.debug('blacklist abort ' + req.url);
-                    }
+            const blacklist = Object.values(_pageBlacklist);
+            for(var i = 0; i < blacklist.length; i++) {
+                if(req.url.match(_pageBlacklist[i])) {
+                    net.abort();
+                    _log.debug('blacklist abort ' + req.url);
                 }
             }
             _log.debug("page.onResourceRequested", JSON.stringify(req));
@@ -528,7 +518,7 @@ ghostdriver.Session = function(desiredCapabilities) {
         _log.info("page.settings", JSON.stringify(page.settings));
         _log.info("page.customHeaders: ", JSON.stringify(page.customHeaders));
         _log.info("page.zoomFactor: ", JSON.stringify(page.zoomFactor));
-        _log.info("page.blacklist: ", JSON.stringify(page.blacklist));
+        _log.info("blacklist: ", JSON.stringify(Object.keys(_pageBlacklist)));
         _log.info("page.wait_for: ", JSON.stringify(page.wait_for));
 
         return page;
@@ -709,6 +699,22 @@ ghostdriver.Session = function(desiredCapabilities) {
 
     _setPageLoadTimeout = function(ms) {
         _setTimeout(_const.TIMEOUT_NAMES.PAGE_LOAD, ms);
+    },
+
+    _addBlacklistUrl = function(url) {
+        _pageBlacklist[url] = new RegExp(url);
+    },
+
+    _deleteBlacklistUrl = function(url) {
+        delete _pageBlacklist[url];
+    },
+
+    _deleteBlacklistUrls = function() {
+        _pageBlacklist = {};
+    },
+
+    _getBlacklistUrls = function() {
+        return Object.keys(_pageBlacklist);
     },
 
     _executePhantomJS = function(page, script, args) {
