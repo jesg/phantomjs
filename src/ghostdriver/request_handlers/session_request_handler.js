@@ -191,8 +191,7 @@ ghostdriver.SessionReqHand = function(session) {
                 _deleteCookieCommand(req, res);
             }
             return;
-        } else if (req.urlParsed.chunks[1] === _const.PHANTOM_BLACKLIST && req.urlParsed.chunks[0] === _const.PHANTOM_DIR) {
-            _log.console('handling blacklist url');
+        } else if (req.urlParsed.chunks[1] === _const.PHANTOM_BLACKLIST && req.urlParsed.chunks[0] === 'phantom') {
             if (req.method === "POST") {
                 _postBlacklistCommand(req, res);
             } else if (req.method === "GET") {
@@ -904,8 +903,8 @@ ghostdriver.SessionReqHand = function(session) {
     _postBlacklistCommand = function(req, res) {
         var params = JSON.parse(req.post);
         if (typeof(params) === "object" && typeof(params.url) === "string") {
-            _log.debug("add url to blacklist " + params.url);
-            _session._addBlacklistUrl(params.url);
+            _log.debug('add url to blacklist: ' + JSON.stringify(params.url));
+            _session.addBlacklistUrl(params.url);
             res.success(_session.getId());
         } else {
             throw _errors.createInvalidReqMissingCommandParameterEH(req);
@@ -913,17 +912,18 @@ ghostdriver.SessionReqHand = function(session) {
     },
 
     _getBlacklistCommand = function(req, res) {
-            _log.debug("add url to blacklist get blacklist");
-        res.success(_session.getId(), _session._getBlacklistUrls());
+        res.success(_session.getId(), _session.getBlacklistUrls());
     },
 
     _deleteBlacklistCommand = function(req, res) {
+        _log.debug(JSON.stringify(req.urlParsed));
         if (req.urlParsed.chunks.length === 3) {
-            _log.debug("add url to blacklist delete blacklist");
-            _session._deleteBlacklistUrl(req.urlParsed.chunks[2]);
+            const url = unescape(atob(req.urlParsed.chunks[2]));
+            _log.debug("delete blacklist url: " + JSON.stringify(url));
+            _session.deleteBlacklistUrl(url);
         } else {
-            _log.debug("add url to blacklist delete blacklists");
-            _session._deleteBlacklistUrls();
+            _log.debug('clear blacklist');
+            _session.deleteBlacklistUrls();
         }
         res.success(_session.getId());
     },

@@ -120,7 +120,6 @@ ghostdriver.Session = function(desiredCapabilities) {
     _pageBlacklist = {},
     _pageSettings = {},
     _pageZoomFactor = 1,
-    _pageBlacklist = null,
     _pageWaitFor = null,
     _additionalPageSettings = {
         resourceTimeout: null,
@@ -466,9 +465,9 @@ ghostdriver.Session = function(desiredCapabilities) {
             page.endTime = new Date();
         });
         page.onResourceRequested = function (req, net) {
-            const blacklist = Object.values(_pageBlacklist);
-            for(var i = 0; i < blacklist.length; i++) {
-                if(req.url.match(_pageBlacklist[i])) {
+            const blacklist_keys = Object.keys(_pageBlacklist);
+            for(var i = 0; i < blacklist_keys.length; i++) {
+                if(req.url.match(_pageBlacklist[blacklist_keys[i]])) {
                     net.abort();
                     _log.debug('blacklist abort ' + req.url);
                 }
@@ -518,7 +517,6 @@ ghostdriver.Session = function(desiredCapabilities) {
         _log.info("page.settings", JSON.stringify(page.settings));
         _log.info("page.customHeaders: ", JSON.stringify(page.customHeaders));
         _log.info("page.zoomFactor: ", JSON.stringify(page.zoomFactor));
-        _log.info("blacklist: ", JSON.stringify(Object.keys(_pageBlacklist)));
         _log.info("page.wait_for: ", JSON.stringify(page.wait_for));
 
         return page;
@@ -806,6 +804,10 @@ ghostdriver.Session = function(desiredCapabilities) {
         getScriptTimeout : _getScriptTimeout,
         getImplicitTimeout : _getImplicitTimeout,
         getPageLoadTimeout : _getPageLoadTimeout,
+        addBlacklistUrl : _addBlacklistUrl,
+        deleteBlacklistUrl : _deleteBlacklistUrl,
+        getBlacklistUrls : _getBlacklistUrls,
+        deleteBlacklistUrls : _deleteBlacklistUrls,
         executePhantomJS : _executePhantomJS,
         timeoutNames : _const.TIMEOUT_NAMES,
         isLoading : _isLoading,
