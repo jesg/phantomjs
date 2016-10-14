@@ -32,45 +32,44 @@ ghostdriver.SessionReqHand = function(session) {
     // private:
     const
     _const = {
-        URL                : "url",
-        ELEMENT            : "element",
-        ELEMENTS           : "elements",
-        ELEMENT_DIR        : "/element/",
-        ACTIVE             : "active",
-        TITLE              : "title",
-        WINDOW             : "window",
-        CURRENT            : "current",
-        SIZE               : "size",
-        POSITION           : "position",
-        MAXIMIZE           : "maximize",
-        FORWARD            : "forward",
-        BACK               : "back",
-        REFRESH            : "refresh",
-        EXECUTE            : "execute",
-        EXECUTE_ASYNC      : "execute_async",
-        SCREENSHOT         : "screenshot",
-        TIMEOUTS           : "timeouts",
-        TIMEOUTS_DIR       : "/timeouts/",
-        ASYNC_SCRIPT       : "async_script",
-        IMPLICIT_WAIT      : "implicit_wait",
-        WINDOW_HANDLE      : "window_handle",
-        WINDOW_HANDLES     : "window_handles",
-        FRAME              : "frame",
-        FRAME_DIR          : "/frame/",
-        SOURCE             : "source",
-        COOKIE             : "cookie",
-        KEYS               : "keys",
-        FILE               : "file",
-        MOVE_TO            : "moveto",
-        CLICK              : "click",
-        BUTTON_DOWN        : "buttondown",
-        BUTTON_UP          : "buttonup",
-        DOUBLE_CLICK       : "doubleclick",
-        PHANTOM_DIR        : "/phantom/",
-        PHANTOM_EXEC       : "execute",
-        PHANTOM_BLACKLIST  : "blacklist",
-        LOG                : "log",
-        TYPES              : "types"
+        URL             : "url",
+        ELEMENT         : "element",
+        ELEMENTS        : "elements",
+        ELEMENT_DIR     : "/element/",
+        ACTIVE          : "active",
+        TITLE           : "title",
+        WINDOW          : "window",
+        CURRENT         : "current",
+        SIZE            : "size",
+        POSITION        : "position",
+        MAXIMIZE        : "maximize",
+        FORWARD         : "forward",
+        BACK            : "back",
+        REFRESH         : "refresh",
+        EXECUTE         : "execute",
+        EXECUTE_ASYNC   : "execute_async",
+        SCREENSHOT      : "screenshot",
+        TIMEOUTS        : "timeouts",
+        TIMEOUTS_DIR    : "/timeouts/",
+        ASYNC_SCRIPT    : "async_script",
+        IMPLICIT_WAIT   : "implicit_wait",
+        WINDOW_HANDLE   : "window_handle",
+        WINDOW_HANDLES  : "window_handles",
+        FRAME           : "frame",
+        FRAME_DIR       : "/frame/",
+        SOURCE          : "source",
+        COOKIE          : "cookie",
+        KEYS            : "keys",
+        FILE            : "file",
+        MOVE_TO         : "moveto",
+        CLICK           : "click",
+        BUTTON_DOWN     : "buttondown",
+        BUTTON_UP       : "buttonup",
+        DOUBLE_CLICK    : "doubleclick",
+        PHANTOM_DIR     : "/phantom/",
+        PHANTOM_EXEC    : "execute",
+        LOG             : "log",
+        TYPES           : "types"
     };
 
     var
@@ -189,15 +188,6 @@ ghostdriver.SessionReqHand = function(session) {
                 _getCookieCommand(req, res);
             } else if(req.method === "DELETE") {
                 _deleteCookieCommand(req, res);
-            }
-            return;
-        } else if (req.urlParsed.chunks[1] === _const.PHANTOM_BLACKLIST && req.urlParsed.chunks[0] === 'phantom') {
-            if (req.method === "POST") {
-                _postBlacklistCommand(req, res);
-            } else if (req.method === "GET") {
-                _getBlacklistCommand(req, res);
-            } else if (req.method === "DELETE") {
-                _deleteBlacklistCommand(req, res);
             }
             return;
         } else if (req.urlParsed.chunks[0] === _const.LOG && req.method === "POST") {  //< ".../log"
@@ -898,34 +888,6 @@ ghostdriver.SessionReqHand = function(session) {
         } else {
             throw _errors.createInvalidReqMissingCommandParameterEH(req);
         }
-    },
-
-    _postBlacklistCommand = function(req, res) {
-        var params = JSON.parse(req.post);
-        if (typeof(params) === "object" && typeof(params.url) === "string") {
-            _log.debug('add url to blacklist: ' + JSON.stringify(params.url));
-            _session.addBlacklistUrl(params.url);
-            res.success(_session.getId());
-        } else {
-            throw _errors.createInvalidReqMissingCommandParameterEH(req);
-        }
-    },
-
-    _getBlacklistCommand = function(req, res) {
-        res.success(_session.getId(), _session.getBlacklistUrls());
-    },
-
-    _deleteBlacklistCommand = function(req, res) {
-        _log.debug(JSON.stringify(req.urlParsed));
-        if (req.urlParsed.chunks.length === 3) {
-            const url = unescape(atob(req.urlParsed.chunks[2]));
-            _log.debug("delete blacklist url: " + JSON.stringify(url));
-            _session.deleteBlacklistUrl(url);
-        } else {
-            _log.debug('clear blacklist');
-            _session.deleteBlacklistUrls();
-        }
-        res.success(_session.getId());
     },
 
     _postLog = function (req, res) {

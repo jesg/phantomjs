@@ -115,12 +115,9 @@ ghostdriver.Session = function(desiredCapabilities) {
     _capsPageSettingsPref = "phantomjs.page.settings.",
     _capsPageCustomHeadersPref = "phantomjs.page.customHeaders.",
     _capsPageZoomFactor = "phantomjs.page.zoomFactor",
-    _capsPageWaitForPref = "phantomjs.page.wait_for",
     _capsPageSettingsProxyPref = "proxy",
-    _pageBlacklist = {},
     _pageSettings = {},
     _pageZoomFactor = 1,
-    _pageWaitFor = null,
     _additionalPageSettings = {
         resourceTimeout: null,
         userName: null,
@@ -179,9 +176,6 @@ ghostdriver.Session = function(desiredCapabilities) {
             proxySettings = _getProxySettingsFromCapabilities(desiredCapabilities[k]);
             phantom.setProxy(proxySettings["ip"], proxySettings["port"], proxySettings["proxyType"], proxySettings["user"], proxySettings["password"]);
         }
-        if (k.indexOf(_capsPageWaitForPref) === 0) {
-            _pageWaitFor = desiredCapabilities[k];
-        }
     }
 
     var
@@ -236,45 +230,23 @@ ghostdriver.Session = function(desiredCapabilities) {
                 checkLoadingFinished;
 
             checkLoadingFinished = function() {
-                var wait_for_async_script = function(){
-                    var result = thisPage.evaluateJavaScript(thisPage.wait_for);
-                    _log.debug("user wait for script result: " + JSON.stringify(result));
-                    if(result){
-                        onLoadFunc.apply(thisPage, onLoadFinishedArgs);
-                    } else {
-                        // Timeout error?
-                        if (new Date().getTime() - loadingStartedTs > _getPageLoadTimeout()) {
-                            _log.debug('timeout on load');
-                            // Report the "Timeout" event
-                            onErrorFunc.call(thisPage, "timeout");
-                            return;
-                        } else {
-                            setTimeout(wait_for_async_script, 10);
-                        }
-                    }
-                };
                 if (!_isLoading()) {               //< page finished loading
                     _log.debug("_execFuncAndWaitForLoadDecorator", "Page Loading in Session: false");
 
-                if (onLoadFinishedArgs !== null) {
+                    if (onLoadFinishedArgs !== null) {
                         // Report the result of the "Load Finished" event
-                        if(!thisPage.wait_for) {
-                            onLoadFunc.apply(thisPage, onLoadFinishedArgs);
-                        } else {
-                            setTimeout(wait_for_async_script, 10);
-                        }
+                        onLoadFunc.apply(thisPage, onLoadFinishedArgs);
                     } else {
                         // No page load was caused: just report "success"
                         onLoadFunc.call(thisPage, "success");
                     }
 
                     return;
-                }
+                } // else:
                 _log.debug("_execFuncAndWaitForLoadDecorator", "Page Loading in Session: true");
 
                 // Timeout error?
                 if (new Date().getTime() - loadingStartedTs > _getPageLoadTimeout()) {
-                                    _log.debug('timeout on load');
                     // Report the "Timeout" event
                     onErrorFunc.call(thisPage, "timeout");
                     return;
@@ -337,7 +309,6 @@ ghostdriver.Session = function(desiredCapabilities) {
                     page[oneShotCallbackName] = [];
                 }
             } catch (e) {
-                            _log.debug('callback in error: ' + e);
                 // In case the "page" object has been closed,
                 // the code above will fail: that's OK.
             }
@@ -388,8 +359,6 @@ ghostdriver.Session = function(desiredCapabilities) {
 
         // 1. Random Window Handle
         page.windowHandle = require("./third_party/uuid.js").v1();
-        _log.info("window handle id " + page.windowHandle);
-        _log.info("number of open windows: " + Object.keys(_windows).length);
 
         // 2. Initialize the One-Shot Callbacks
         page["onLoadStarted"] = _oneShotCallbackFactory(page, "onLoadStarted");
@@ -422,7 +391,6 @@ ghostdriver.Session = function(desiredCapabilities) {
         
         // 8. Applying Page zoomFactor
         page.zoomFactor = _pageZoomFactor;
-        page.wait_for = _pageWaitFor;
 
         // 9. Log Page internal errors
         page.onError = function(errorMsg, errorStack) {
@@ -464,14 +432,7 @@ ghostdriver.Session = function(desiredCapabilities) {
         page.setOneShotCallback("onLoadFinished", function() {
             page.endTime = new Date();
         });
-        page.onResourceRequested = function (req, net) {
-            const blacklist_keys = Object.keys(_pageBlacklist);
-            for(var i = 0; i < blacklist_keys.length; i++) {
-                if(req.url.match(_pageBlacklist[blacklist_keys[i]])) {
-                    net.abort();
-                    _log.debug('blacklist abort ' + req.url);
-                }
-            }
+        page.onResourceRequested = function (req) {
             _log.debug("page.onResourceRequested", JSON.stringify(req));
 
             // Register HTTP Request
@@ -517,7 +478,6 @@ ghostdriver.Session = function(desiredCapabilities) {
         _log.info("page.settings", JSON.stringify(page.settings));
         _log.info("page.customHeaders: ", JSON.stringify(page.customHeaders));
         _log.info("page.zoomFactor: ", JSON.stringify(page.zoomFactor));
-        _log.info("page.wait_for: ", JSON.stringify(page.wait_for));
 
         return page;
     },
@@ -699,22 +659,6 @@ ghostdriver.Session = function(desiredCapabilities) {
         _setTimeout(_const.TIMEOUT_NAMES.PAGE_LOAD, ms);
     },
 
-    _addBlacklistUrl = function(url) {
-        _pageBlacklist[url] = new RegExp(url);
-    },
-
-    _deleteBlacklistUrl = function(url) {
-        delete _pageBlacklist[url];
-    },
-
-    _deleteBlacklistUrls = function() {
-        _pageBlacklist = {};
-    },
-
-    _getBlacklistUrls = function() {
-        return Object.keys(_pageBlacklist);
-    },
-
     _executePhantomJS = function(page, script, args) {
         try {
             var code = new Function(script);
@@ -804,10 +748,6 @@ ghostdriver.Session = function(desiredCapabilities) {
         getScriptTimeout : _getScriptTimeout,
         getImplicitTimeout : _getImplicitTimeout,
         getPageLoadTimeout : _getPageLoadTimeout,
-        addBlacklistUrl : _addBlacklistUrl,
-        deleteBlacklistUrl : _deleteBlacklistUrl,
-        getBlacklistUrls : _getBlacklistUrls,
-        deleteBlacklistUrls : _deleteBlacklistUrls,
         executePhantomJS : _executePhantomJS,
         timeoutNames : _const.TIMEOUT_NAMES,
         isLoading : _isLoading,

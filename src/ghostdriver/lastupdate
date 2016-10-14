@@ -1,7 +1,7 @@
-2014-02-12 23:42:59
+2016-10-14 09:50:41
 
-commit 2af7099a9f5cf683ff565617be38b70318c9203f (HEAD, refs/remotes/origin/master, refs/remotes/origin/HEAD, refs/heads/master)
-Author: Ivan De Marino <detronizator@gmail.com>
-Date:   Wed Feb 12 23:42:43 2014 +0000
+commit 22ea4aa3e5d807b05de47c8632bd2c24c5f0c978 (HEAD -> refs/heads/jgowan-selenium-3.0.0-atoms, refs/remotes/origin/jgowan-selenium-3.0.0-atoms, refs/remotes/gitlab/jgowan-selenium-3.0.0-atoms)
+Author: Jason Gowan <gowanjason@gmail.com>
+Date:   Fri Oct 14 09:44:33 2016 -0700
 
-    Removing flaky (and pointless) test
+    build selenium 3.0.0 atoms for ghostdriver
