@@ -1,7 +1,7 @@
 /*
 This file is part of the GhostDriver by Ivan De Marino <http://ivandemarino.me>.
 
-Copyright (c) 2012-2014, Ivan De Marino <http://ivandemarino.me>
+Copyright (c) 2016, Jason Gowan
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -27,29 +27,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 package ghostdriver;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
-import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
-public class GoogleSearchTest extends BaseTest {
+public class CustomHeadersTest extends BaseTest {
+    @BeforeClass
+    public static void setCustomHeaders() {
+        sCaps.setCapability(
+                "phantomjs.page.customHeaders.Accept-Encoding",
+                "gzip, deflate"
+        );
+    }
+
+    // regression test for detro/ghostdriver#489
     @Test
-    public void searchForCheese() {
-        String strToSearchFor = "Cheese!";
+    public void testAcceptEncodingHeader() {
         WebDriver d = getDriver();
 
-        // Load Google.com
-        d.get(" http://www.google.com");
-        // Locate the Search field on the Google page
-        WebElement element = d.findElement(By.name("q"));
-        // Type Cheese
-        element.sendKeys(strToSearchFor);
-        // Submit form
-        element.submit();
-
-        // Check results contains the term we searched for
-        assertTrue(d.getTitle().toLowerCase().contains(strToSearchFor.toLowerCase()));
+        d.get("https://cn.bing.com");
+        assertFalse(d.getTitle().isEmpty());
     }
+
 }

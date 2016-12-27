@@ -69,6 +69,7 @@ ghostdriver.Session = function(desiredCapabilities) {
         "proxy" : {                         //< TODO Support more proxy options - PhantomJS does allow setting from command line
             "proxyType" : _const.PROXY_TYPES.DIRECT
         },
+        "webSecurityEnabled" : true
     },
     _negotiatedCapabilities = {
         "browserName"               : _defaultCapabilities.browserName,
@@ -92,16 +93,19 @@ ghostdriver.Session = function(desiredCapabilities) {
         "nativeEvents"              : _defaultCapabilities.nativeEvents,
         "proxy"                     : typeof(desiredCapabilities.proxy) === "undefined" ?
             _defaultCapabilities.proxy :
-            desiredCapabilities.proxy
+            desiredCapabilities.proxy,
+        "webSecurityEnabled"        : typeof(desiredCapabilities.webSecurityEnabled) === "undefined" ?
+            _defaultCapabilities.webSecurityEnabled :
+            desiredCapabilities.webSecurityEnabled
     },
     // NOTE: This value is needed for Timeouts Upper-bound limit.
     // "setTimeout/setInterval" accept only 32 bit integers, even though Number are all Doubles (go figure!)
     // Interesting details here: {@link http://stackoverflow.com/a/4995054}.
     _max32bitInt = Math.pow(2, 31) -1,      //< Max 32bit Int
     _timeouts = {
-        "script"            : _max32bitInt,
-        "implicit"          : 200,          //< 200ms
-        "page load"         : _max32bitInt,
+        "script"            : 30000,
+        "implicit"          : 0,
+        "page load"         : 300000,
     },
     _windows = {},  //< NOTE: windows are "webpage" in Phantom-dialect
     _currentWindowHandle = null,
@@ -110,9 +114,12 @@ ghostdriver.Session = function(desiredCapabilities) {
     _inputs = ghostdriver.Inputs(),
     _capsPageSettingsPref = "phantomjs.page.settings.",
     _capsPageCustomHeadersPref = "phantomjs.page.customHeaders.",
+    _capsPageZoomFactor = "phantomjs.page.zoomFactor",
     _capsPageSettingsProxyPref = "proxy",
     _pageSettings = {},
+    _pageZoomFactor = 1,
     _additionalPageSettings = {
+        resourceTimeout: null,
         userName: null,
         password: null
     },
@@ -143,9 +150,9 @@ ghostdriver.Session = function(desiredCapabilities) {
         return proxySettings;
     };
 
-    // Searching for `phantomjs.settings.* and phantomjs.customHeaders.*` in the Desired Capabilities and merging with the Negotiated Capabilities
-    // Possible values for settings: @see https://github.com/ariya/phantomjs/wiki/API-Reference#wiki-webpage-settings.
-    // Possible values for customHeaders: @see https://github.com/ariya/phantomjs/wiki/API-Reference-WebPage#wiki-webpage-customHeaders.
+    // Searching for `phantomjs.settings.* and phantomjs.customHeaders.* phantomjs.page.zoomFactor` in the Desired Capabilities and merging with the Negotiated Capabilities
+    // Possible values for settings: @see http://phantomjs.org/api/webpage/property/settings.html.
+    // Possible values for customHeaders: @see http://phantomjs.org/api/webpage/property/custom-headers.html.
     for (k in desiredCapabilities) {
         if (k.indexOf(_capsPageSettingsPref) === 0) {
             settingKey = k.substring(_capsPageSettingsPref.length);
@@ -160,6 +167,10 @@ ghostdriver.Session = function(desiredCapabilities) {
                 _negotiatedCapabilities[k] = desiredCapabilities[k];
                 _pageCustomHeaders[headerKey] = desiredCapabilities[k];
             }
+        }
+        if (k.indexOf(_capsPageZoomFactor) === 0){
+            _negotiatedCapabilities[k] = desiredCapabilities[k];
+            _pageZoomFactor = desiredCapabilities[k];
         }
         if (k.indexOf(_capsPageSettingsProxyPref) === 0) {
             proxySettings = _getProxySettingsFromCapabilities(desiredCapabilities[k]);
@@ -183,7 +194,8 @@ ghostdriver.Session = function(desiredCapabilities) {
         var args = Array.prototype.splice.call(arguments, 0),
             thisPage = this,
             onLoadFinishedArgs = null,
-            onErrorArgs = null;
+            onErrorArgs = null,
+            detectLoadStartLatch = false;
 
         // Normalize "execTypeOpt" value
         if (typeof(execTypeOpt) === "undefined" ||
@@ -195,7 +207,14 @@ ghostdriver.Session = function(desiredCapabilities) {
         this.setOneShotCallback("onLoadFinished", function (status) {
             _log.debug("_execFuncAndWaitForLoadDecorator", "onLoadFinished: " + status);
 
+            detectLoadStartLatch = false;
             onLoadFinishedArgs = Array.prototype.slice.call(arguments);
+        });
+
+        // Register Callbacks to grab any async event we are interested in
+        this.setOneShotCallback("onLoadStarted", function () {
+            _log.debug("_execFuncAndWaitForLoadDecorator", "onLoadStarted: wait for onLoadFinished");
+            detectLoadStartLatch = true;
         });
 
         // Execute "code"
@@ -219,13 +238,15 @@ ghostdriver.Session = function(desiredCapabilities) {
                 checkLoadingFinished;
 
             checkLoadingFinished = function() {
-                if (!_isLoading()) {               //< page finished loading
+                if (!_isLoading() && !detectLoadStartLatch) {               //< page finished loading
                     _log.debug("_execFuncAndWaitForLoadDecorator", "Page Loading in Session: false");
 
                     if (onLoadFinishedArgs !== null) {
+                        _log.debug("_execFuncAndWaitForLoadDecorator", "Handle Load Finish Event");
                         // Report the result of the "Load Finished" event
                         onLoadFunc.apply(thisPage, onLoadFinishedArgs);
                     } else {
+                        _log.debug("_execFuncAndWaitForLoadDecorator", "No Load Finish Event Detected");
                         // No page load was caused: just report "success"
                         onLoadFunc.call(thisPage, "success");
                     }
@@ -376,9 +397,15 @@ ghostdriver.Session = function(desiredCapabilities) {
         }
 
         // 7. Applying Page custom headers received via capabilities
-        page.customHeaders = _pageCustomHeaders;
+        // fix custom headers per ariya/phantomjs#13621 and detro/ghostdriver#489
+        for(var k in _pageCustomHeaders) {
+            page.customHeaders[k] = _pageCustomHeaders[k];
+        }
 
-        // 8. Log Page internal errors
+        // 8. Applying Page zoomFactor
+        page.zoomFactor = _pageZoomFactor;
+
+        // 9. Log Page internal errors
         page.onError = function(errorMsg, errorStack) {
             var stack = '';
 
@@ -398,7 +425,7 @@ ghostdriver.Session = function(desiredCapabilities) {
             page.browserLog.push(_createLogEntry("WARNING", errorMsg + "\n" + stack));
         };
 
-        // 9. Log Page console messages
+        // 10. Log Page console messages
         page.browserLog = [];
         page.onConsoleMessage = function(msg, lineNum, sourceId) {
             // Log as debug
@@ -408,7 +435,7 @@ ghostdriver.Session = function(desiredCapabilities) {
             page.browserLog.push(_createLogEntry("INFO", msg + " (" + sourceId + ":" + lineNum + ")"));
         };
 
-        // 10. Log Page network activity
+        // 11. Log Page network activity
         page.resources = [];
         page.startTime = null;
         page.endTime = null;
@@ -463,6 +490,7 @@ ghostdriver.Session = function(desiredCapabilities) {
 
         _log.info("page.settings", JSON.stringify(page.settings));
         _log.info("page.customHeaders: ", JSON.stringify(page.customHeaders));
+        _log.info("page.zoomFactor: ", JSON.stringify(page.zoomFactor));
 
         return page;
     },
@@ -483,13 +511,14 @@ ghostdriver.Session = function(desiredCapabilities) {
         var wHandle;
 
         for (wHandle in _windows) {
-            if (_windows[wHandle].loading) {
+            if (_windows[wHandle].loadingProgress < 100) {
                 return true;
             }
         }
 
-        // If we arrived here, means that no window is loading
-        return false;
+        return !_getCurrentWindow().evaluate(function() {
+            return window.document.readyState === "complete";
+        });
     },
 
     /**
@@ -679,12 +708,16 @@ ghostdriver.Session = function(desiredCapabilities) {
             tmp.push(_createLogEntry(
                 "INFO",
                 JSON.stringify(har.createHar(page, page.resources))));
+            page.resources = [];
             return tmp;
         }
 
         // Return Browser Console Log
         if (type === _const.LOG_TYPES.BROWSER) {
-            return _getCurrentWindow().browserLog;
+            page = _getCurrentWindow();
+            tmp = page.browserLog;
+            page.browserLog = [];
+            return tmp;
         }
 
         // Return empty Log

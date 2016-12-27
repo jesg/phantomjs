@@ -1,7 +1,10 @@
-2014-02-12 23:42:59
+2016-12-27 09:01:19
 
-commit 2af7099a9f5cf683ff565617be38b70318c9203f (HEAD, refs/remotes/origin/master, refs/remotes/origin/HEAD, refs/heads/master)
-Author: Ivan De Marino <detronizator@gmail.com>
-Date:   Wed Feb 12 23:42:43 2014 +0000
+commit 7bd1fc86c6af16712c9ec95bfc2567e8d1ea4788 (HEAD -> refs/heads/jgowan-wait-for-page-load, refs/remotes/origin/jgowan-wait-for-page-load)
+Author: Jason Gowan <gowanjason@gmail.com>
+Date:   Thu Dec 22 10:52:46 2016 -0800
 
-    Removing flaky (and pointless) test
+    handle page load in phantomjs 2.5
+    
+    this commit works around some subtle differences in page loading between
+    phantomjs 2.1.1 and phantomjs 2.5.

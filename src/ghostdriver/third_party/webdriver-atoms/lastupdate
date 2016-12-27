@@ -1,7 +1,13 @@
-2014-01-02 22:06:54
+2016-10-14 09:40:53
 
-commit 14fa800511cc5d66d426e08b0b2ab926c7ed7398 (HEAD, tag: refs/tags/selenium-2.39.0)
-Author: Jim Evans <james.h.evans.jr@gmail.com>
-Date:   Mon Dec 16 11:26:02 2013 -0500
+commit 350cf60be65d3e67407d1eaf0a2b8d3f8153e84d (HEAD, tag: refs/tags/selenium-3.0.0)
+Author: Luke Inman-Semerau <luke.semerau@gmail.com>
+Date:   Thu Oct 13 09:36:33 2016 -0700
 
-    Updating .NET CHANGELOG for 2.39.0 release
+    py-chrome tests are flaky due to an issue with chromedriver
+    
+    on alert handling we are encountering this bug:
+    https://bugs.chromium.org/p/chromedriver/issues/detail?id=1500
+    
+    seems to occur at random. We either need to ignore the chrome alert tests
+    or wrap every alert call handling the error. until the chromedriver bug is fixed
